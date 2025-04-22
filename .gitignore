@@ -45,5 +45,12 @@ wheels/
 *.tmp
 *.temp
 data/tmp/*
-data/vector_stores/*
-data/pretrained_vector_store/* 
+
+# Keep vector stores but ignore specific files
+data/vector_stores/*.zip
+data/vector_stores/tmp/
+data/pretrained_vector_store/tmp/
+
+# Other
+.DS_Store
+Thumbs.db 

@@ -24,50 +24,60 @@ import json
 # Load environment variables
 load_dotenv()
 
+# Get OpenAI API key from environment variables
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if not OPENAI_API_KEY:
+    st.error("OpenAI API key not found in .env file. Please add it to your .env file.")
+    st.stop()
+
 warnings.filterwarnings("ignore", category=FutureWarning)
 
 # Initialize session state variables
-if 'openai_api_key' not in st.session_state:
-    st.session_state.openai_api_key = os.getenv("OPENAI_API_KEY", "")
-if 'google_api_key' not in st.session_state:
-    st.session_state.google_api_key = os.getenv("GOOGLE_API_KEY", "")
-if 'hf_api_key' not in st.session_state:
-    st.session_state.hf_api_key = os.getenv("HUGGINGFACEHUB_API_TOKEN", "")
-if 'selected_model' not in st.session_state:
-    st.session_state.selected_model = "gpt-3.5-turbo"
-if 'temperature' not in st.session_state:
-    st.session_state.temperature = 0.5
-if 'top_p' not in st.session_state:
-    st.session_state.top_p = 0.95
-if 'messages' not in st.session_state:
+if "messages" not in st.session_state:
     st.session_state.messages = []
-if 'user_id' not in st.session_state:
-    st.session_state.user_id = None
-if 'credits' not in st.session_state:
-    st.session_state.credits = 2.0  # Default 2 free credits
-if 'vector_store' not in st.session_state:
-    st.session_state.vector_store = None
-if 'documents_loaded' not in st.session_state:
+if "documents_loaded" not in st.session_state:
     st.session_state.documents_loaded = False
-if 'LLM_provider' not in st.session_state:
-    st.session_state.LLM_provider = "OpenAI"  # Default to OpenAI
-if 'chain' not in st.session_state:
+if "LLM_provider" not in st.session_state:
+    st.session_state.LLM_provider = "OpenAI"
+if "chain" not in st.session_state:
     st.session_state.chain = None
-if 'memory' not in st.session_state:
+if "memory" not in st.session_state:
     st.session_state.memory = None
-if 'retriever' not in st.session_state:
+if "retriever" not in st.session_state:
     st.session_state.retriever = None
-if 'pretrained_vector_store' not in st.session_state:
+if "pretrained_vector_store" not in st.session_state:
     st.session_state.pretrained_vector_store = None
-if 'assistant_language' not in st.session_state:
-    st.session_state.assistant_language = "english"
-if 'retriever_type' not in st.session_state:
+if "assistant_language" not in st.session_state:
+    st.session_state.assistant_language = "English"
+if "retriever_type" not in st.session_state:
     st.session_state.retriever_type = "Vectorstore backed retriever"
+if "openai_api_key" not in st.session_state:
+    st.session_state.openai_api_key = OPENAI_API_KEY
+if "model_name" not in st.session_state:
+    st.session_state.model_name = "gpt-3.5-turbo"
+if "temperature" not in st.session_state:
+    st.session_state.temperature = 0.7
+if "user_id" not in st.session_state:
+    st.session_state.user_id = None
+if "credits" not in st.session_state:
+    st.session_state.credits = 2.0
+if "is_admin" not in st.session_state:
+    st.session_state.is_admin = False
+if "selected_model" not in st.session_state:
+    st.session_state.selected_model = "gpt-3.5-turbo"
+if "top_p" not in st.session_state:
+    st.session_state.top_p = 0.95
+if "vector_store" not in st.session_state:
+    st.session_state.vector_store = None
+if "vector_store_name" not in st.session_state:
+    st.session_state.vector_store_name = ""
+if "uploaded_file_list" not in st.session_state:
+    st.session_state.uploaded_file_list = None
+if "error_message" not in st.session_state:
+    st.session_state.error_message = ""
 
-# Import openai and google_genai as main LLM services
+# Import openai as main LLM service
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 # langchain prompts, memory, chains...
 from langchain.prompts import PromptTemplate, ChatPromptTemplate
@@ -106,18 +116,9 @@ from langchain_community.document_transformers import (
 from langchain.retrievers.document_compressors import EmbeddingsFilter
 from langchain.retrievers import ContextualCompressionRetriever
 
-# HuggingFace
-from langchain_community.embeddings import HuggingFaceInferenceAPIEmbeddings
-from langchain_community.llms import HuggingFaceHub
-
 ####################################################################
 #              Config: LLM services, assistant language,...
 ####################################################################
-list_LLM_providers = [
-    ":rainbow[**OpenAI**]",
-    "**Google Generative AI**",
-    ":hugging_face: **HuggingFace**",
-]
 
 dict_welcome_message = {
     "english": "How can I assist you today?",
@@ -159,16 +160,6 @@ ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "admin123"  # Change this in production
 ADMIN_EMAIL = "admin@example.com"
 
-####################################################################
-#            Create app interface with streamlit
-####################################################################
-st.title("🤖 RAG chatbot")
-
-# API keys
-st.session_state.openai_api_key = ""
-st.session_state.google_api_key = ""
-st.session_state.hf_api_key = ""
-
 # Create necessary directories
 for dir_path in [
     Path(__file__).resolve().parent.joinpath("data"),
@@ -187,41 +178,36 @@ list_models_openai = [
     "gpt-3.5-turbo",
 ]
 
-def expander_model_parameters(LLM_provider="OpenAI", text_input_API_key="OpenAI API Key - [Get an API key](https://platform.openai.com/account/api-keys)", list_models=list_models_openai):
-    """Add a text_input (for API key) and a streamlit expander containing models and parameters."""
-    st.session_state.LLM_provider = LLM_provider
+def expander_model_parameters():
+    """Expander for model parameters"""
+    with st.expander("Model Parameters", expanded=True):
+        # Model selection
+        st.session_state.selected_model = st.selectbox(
+            "Select Model",
+            ["gpt-3.5-turbo", "gpt-4", "gpt-4-turbo-preview"],
+            index=0,
+        )
 
-    if LLM_provider == "OpenAI":
-        env_api_key = os.getenv("OPENAI_API_KEY")
-        if env_api_key:
-            st.session_state.openai_api_key = env_api_key
-        else:
-            st.session_state.openai_api_key = st.text_input(text_input_API_key, type="password", placeholder="insert your API key")
-        st.session_state.google_api_key = ""
-        st.session_state.hf_api_key = ""
+        # Temperature slider
+        st.session_state.temperature = st.slider(
+            "Temperature",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.7,
+            step=0.1,
+            help="Controls randomness in the model's output. Higher values make the output more random.",
+        )
 
-    if LLM_provider == "Google":
-        env_api_key = os.getenv("GOOGLE_API_KEY")
-        if env_api_key:
-            st.session_state.google_api_key = env_api_key
-        else:
-            st.session_state.google_api_key = st.text_input(text_input_API_key, type="password", placeholder="insert your API key")
-        st.session_state.openai_api_key = ""
-        st.session_state.hf_api_key = ""
+        # API Key input
+        st.session_state.openai_api_key = st.text_input(
+            "OpenAI API Key",
+            type="password",
+            value=st.session_state.openai_api_key,
+            help="Enter your OpenAI API key to use the chatbot.",
+        )
 
-    if LLM_provider == "HuggingFace":
-        env_api_key = os.getenv("HUGGINGFACEHUB_API_TOKEN")
-        if env_api_key:
-            st.session_state.hf_api_key = env_api_key
-        else:
-            st.session_state.hf_api_key = st.text_input(text_input_API_key, type="password", placeholder="insert your API key")
-        st.session_state.openai_api_key = ""
-        st.session_state.google_api_key = ""
-
-    with st.expander("**Models and parameters**"):
-        st.session_state.selected_model = st.selectbox(f"Choose {LLM_provider} model", list_models)
-        st.session_state.temperature = st.slider("temperature", min_value=0.0, max_value=1.0, value=0.5, step=0.1)
-        st.session_state.top_p = st.slider("top_p", min_value=0.0, max_value=1.0, value=0.95, step=0.05)
+        if not st.session_state.openai_api_key:
+            st.warning("Please enter your OpenAI API key to use the chatbot.")
 
 
 def load_initial_training_data():
@@ -272,35 +258,80 @@ def load_initial_training_data():
         st.error(f"Error loading initial training data: {str(e)}")
         return []
 
-def load_pretrained_vector_store():
-    """Load the pre-trained vector store"""
+def precompute_database_embeddings():
+    """Pre-compute and store embeddings for all documents in the database directory"""
     try:
-        # Ensure we have an API key before proceeding
-        if not st.session_state.openai_api_key and not st.session_state.google_api_key and not st.session_state.hf_api_key:
-            st.error("Please provide an API key for your selected LLM provider")
+        # Load all documents from database directory
+        documents = []
+        
+        # Load PDF files
+        pdf_loader = DirectoryLoader(
+            DATABASE_DIR.as_posix(), 
+            glob="**/*.pdf", 
+            loader_cls=PyPDFLoader, 
+            show_progress=True
+        )
+        documents.extend(pdf_loader.load())
+        
+        if not documents:
+            st.error("No documents found in database directory")
             return False
-            
-        embeddings = select_embeddings_model()
-        st.session_state.pretrained_vector_store = Chroma(
-            embedding_function=embeddings,
+        
+        # Split documents into chunks
+        chunks = split_documents_to_chunks(documents)
+        
+        # Create embeddings
+        embeddings = OpenAIEmbeddings(api_key=st.session_state.openai_api_key)
+        
+        # Create and persist vector store
+        vector_store = Chroma.from_documents(
+            documents=chunks,
+            embedding=embeddings,
             persist_directory=str(PRETRAINED_VECTOR_STORE_DIR)
         )
         
-        # Create retriever for pre-trained data
+        # Persist the vector store
+        vector_store.persist()
+        
+        st.success("Database embeddings pre-computed and stored successfully!")
+        return True
+        
+    except Exception as e:
+        st.error(f"Error pre-computing database embeddings: {str(e)}")
+        return False
+
+def load_pretrained_vector_store():
+    """Load the pre-trained vector store from disk"""
+    try:
+        if not st.session_state.openai_api_key:
+            st.error("Please provide your OpenAI API key")
+            return False
+            
+        embeddings = OpenAIEmbeddings(api_key=st.session_state.openai_api_key)
+        
+        # Load the persisted vector store
+        st.session_state.pretrained_vector_store = Chroma(
+            persist_directory=str(PRETRAINED_VECTOR_STORE_DIR),
+            embedding_function=embeddings
+        )
+        
+        # Create retriever
         st.session_state.retriever = create_retriever(
             vector_store=st.session_state.pretrained_vector_store,
             embeddings=embeddings,
             retriever_type=st.session_state.retriever_type
         )
         
-        # Create chain for pre-trained data
+        # Create chain
         st.session_state.chain, st.session_state.memory = create_ConversationalRetrievalChain(
             retriever=st.session_state.retriever,
             chain_type="stuff",
             language=st.session_state.assistant_language
         )
         
+        st.session_state.documents_loaded = True
         return True
+        
     except Exception as e:
         st.error(f"Error loading pre-trained vector store: {str(e)}")
         return False
@@ -352,7 +383,7 @@ def process_documents(documents):
         return False
 
 def process_uploaded_documents(uploaded_files):
-    """Process uploaded documents and combine with pre-trained data"""
+    """Process uploaded documents and create vector store"""
     if not uploaded_files:
         st.warning("Please upload at least one document")
         return False
@@ -378,7 +409,7 @@ def process_uploaded_documents(uploaded_files):
         chunks = split_documents_to_chunks(documents)
         
         # Create embeddings
-        embeddings = select_embeddings_model()
+        embeddings = OpenAIEmbeddings(api_key=st.session_state.openai_api_key)
         
         # Create vector store for uploaded documents
         vector_store_name = f"user_vector_store_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
@@ -391,26 +422,18 @@ def process_uploaded_documents(uploaded_files):
             persist_directory=str(persist_directory)
         )
         
-        # Combine with pre-trained vector store
-        if hasattr(st.session_state, 'pretrained_vector_store'):
-            # Create a combined retriever
-            base_retriever = user_vector_store.as_retriever()
-            pretrained_retriever = st.session_state.pretrained_vector_store.as_retriever()
-            
-            # Create a combined retriever that searches both stores
-            st.session_state.retriever = create_retriever(
-                vector_store=user_vector_store,
-                embeddings=embeddings,
-                retriever_type=st.session_state.retriever_type,
-                additional_retriever=pretrained_retriever
-            )
-        else:
-            # If no pre-trained store, just use the user's vector store
-            st.session_state.retriever = create_retriever(
-                vector_store=user_vector_store,
-                embeddings=embeddings,
-                retriever_type=st.session_state.retriever_type
-            )
+        # Persist the vector store
+        user_vector_store.persist()
+        
+        st.success(f"Documents processed successfully! Vector store saved to: {persist_directory}")
+        st.info("To use these embeddings on a server, you'll need to copy the vector store directory to the server.")
+        
+        # Create retriever
+        st.session_state.retriever = create_retriever(
+            vector_store=user_vector_store,
+            embeddings=embeddings,
+            retriever_type=st.session_state.retriever_type
+        )
         
         # Create chain
         st.session_state.chain, st.session_state.memory = create_ConversationalRetrievalChain(
@@ -420,7 +443,6 @@ def process_uploaded_documents(uploaded_files):
         )
         
         st.session_state.documents_loaded = True
-        st.success("Documents processed successfully! You can now chat with your data.")
         return True
         
     except Exception as e:
@@ -430,57 +452,97 @@ def process_uploaded_documents(uploaded_files):
         # Clean up temporary files
         delte_temp_files()
 
-def sidebar_and_documentChooser():
-    """Create the sidebar with document upload and model selection"""
-    with st.sidebar:
-        st.caption("🚀 A retrieval augmented generation chatbot powered by 🔗 Langchain, OpenAI, Google Generative AI and 🤗")
-        st.write("")
-
-        # Model selection first (needed for embeddings)
-        st.subheader("Select Model")
-        llm_chooser = st.radio("Select provider", list_LLM_providers, captions=[
-            "[OpenAI pricing page](https://openai.com/pricing)",
-            "Rate limit: 60 requests per minute.",
-            "**Free access.**",
-        ])
-
-        if llm_chooser == list_LLM_providers[0]:
-            expander_model_parameters(LLM_provider="OpenAI", text_input_API_key="OpenAI API Key - [Get an API key](https://platform.openai.com/account/api-keys)", list_models=list_models_openai)
-        elif llm_chooser == list_LLM_providers[1]:
-            expander_model_parameters(LLM_provider="Google", text_input_API_key="Google API Key - [Get an API key](https://makersuite.google.com/app/apikey)", list_models=["gemini-pro"])
-        else:
-            expander_model_parameters(LLM_provider="HuggingFace", text_input_API_key="HuggingFace API key - [Get an API key](https://huggingface.co/settings/tokens)", list_models=["mistralai/Mistral-7B-Instruct-v0.2"])
-
-        # Assistant language
-        st.write("")
-        st.session_state.assistant_language = st.selectbox("Assistant language", list(dict_welcome_message.keys()))
-
-        st.divider()
-        st.subheader("Retrieval Settings")
-        st.session_state.retriever_type = st.selectbox("Select retriever type", list_retriever_types)
-
-        st.divider()
+def export_vector_store():
+    """Export the current vector store for deployment"""
+    try:
+        if not st.session_state.documents_loaded:
+            st.error("No vector store loaded")
+            return False
+            
+        # Get the most recent vector store directory
+        vector_stores = list(LOCAL_VECTOR_STORE_DIR.glob("user_vector_store_*"))
+        if not vector_stores:
+            st.error("No vector stores found")
+            return False
+            
+        latest_store = max(vector_stores, key=lambda x: x.stat().st_mtime)
         
-        # Document upload section
+        # Create a zip file of the vector store
+        import shutil
+        zip_path = LOCAL_VECTOR_STORE_DIR / f"{latest_store.name}.zip"
+        shutil.make_archive(str(zip_path)[:-4], 'zip', str(latest_store))
+        
+        # Create download button
+        with open(zip_path, "rb") as f:
+            st.download_button(
+                label="Download Vector Store",
+                data=f,
+                file_name=zip_path.name,
+                mime="application/zip"
+            )
+        
+        st.success(f"Vector store exported to: {zip_path}")
+        return True
+        
+    except Exception as e:
+        st.error(f"Error exporting vector store: {str(e)}")
+        return False
+
+def sidebar_and_documentChooser():
+    """Sidebar for document upload and settings"""
+    with st.sidebar:
+        st.title("Settings")
+        
+        # Model parameters
+        expander_model_parameters()
+        
+        # Assistant language
+        st.session_state.assistant_language = st.selectbox(
+            "Assistant Language",
+            ["English", "Spanish", "French", "German", "Italian", "Portuguese", "Russian", "Chinese", "Japanese", "Korean"],
+            index=0,
+        )
+        
+        # Document upload
         st.subheader("Upload Documents")
-        uploaded_files = st.file_uploader("Choose files", type=["pdf", "txt", "docx", "csv"], accept_multiple_files=True)
+        uploaded_files = st.file_uploader(
+            "Choose files",
+            type=["pdf", "txt", "csv", "docx"],
+            accept_multiple_files=True,
+            help="Upload documents to be processed and used for answering questions."
+        )
         
         if uploaded_files:
             st.write(f"Selected files: {[f.name for f in uploaded_files]}")
             if st.button("Process Documents"):
                 with st.spinner("Processing documents..."):
-                    if process_uploaded_documents(uploaded_files):
-                        st.success("Documents processed successfully! You can now chat with your data.")
-                    else:
-                        st.error("Failed to process documents. Please check your files and try again.")
-        elif not st.session_state.documents_loaded:
-            if not hasattr(st.session_state, 'pretrained_vector_store') or st.session_state.pretrained_vector_store is None:
-                with st.spinner("Loading pre-trained data..."):
-                    if load_pretrained_vector_store():
-                        st.success("Pre-trained data loaded successfully!")
-                        st.session_state.documents_loaded = True
-                    else:
-                        st.error("Failed to load pre-trained data")
+                    try:
+                        process_uploaded_documents(uploaded_files)
+                        st.success("Documents processed successfully!")
+                    except Exception as e:
+                        st.error(f"Error processing documents: {str(e)}")
+        
+        # Admin section
+        if st.session_state.get("is_admin", False):
+            st.subheader("Admin Tools")
+            
+            # Pre-compute embeddings for database documents
+            if st.button("Pre-compute Database Embeddings"):
+                with st.spinner("Pre-computing embeddings..."):
+                    try:
+                        if precompute_database_embeddings():
+                            st.success("Database embeddings pre-computed successfully!")
+                    except Exception as e:
+                        st.error(f"Error pre-computing embeddings: {str(e)}")
+            
+            # Load pre-trained vector store
+            if st.button("Load Pre-trained Vector Store"):
+                with st.spinner("Loading vector store..."):
+                    try:
+                        if load_pretrained_vector_store():
+                            st.success("Pre-trained vector store loaded successfully!")
+                    except Exception as e:
+                        st.error(f"Error loading vector store: {str(e)}")
 
 
 ####################################################################
@@ -865,6 +927,8 @@ Instructions:
 3. Be precise and concise
 4. If relevant, cite the source document
 5. Answer in the specified language
+6. Do not repeat previous answers - provide new information or different aspects
+7. If asked for more details, provide additional specific information from the context
 """
     return template
 
@@ -882,79 +946,37 @@ def create_ConversationalRetrievalChain(
     """
 
     # 1. Define the standalone_question prompt.
-    # Pass the follow-up question along with the chat history to the `condense_question_llm`
-    # which rephrases the question and generates a standalone question.
-
     condense_question_prompt = PromptTemplate(
         input_variables=["chat_history", "question"],
         template="""Given the following conversation and a follow up question, 
-rephrase the follow up question to be a standalone question, in its original language.\n\n
+rephrase the follow up question to be a standalone question, in its original language.
+If the follow up question is a request for more details or clarification, 
+include the context from the chat history to make it more specific.\n\n
 Chat History:\n{chat_history}\n
 Follow Up Input: {question}\n
 Standalone question:""",
     )
 
     # 2. Define the answer_prompt
-    # Pass the standalone question + the chat history + the context (retrieved documents)
-    # to the `LLM` wihch will answer
-
     answer_prompt = ChatPromptTemplate.from_template(answer_template(language=language))
 
     # 3. Add ConversationSummaryBufferMemory for gpt-3.5, and ConversationBufferMemory for the other models
     memory = create_memory(st.session_state.selected_model)
 
-    # 4. Instantiate LLMs: standalone_query_generation_llm & response_generation_llm
-    if st.session_state.LLM_provider == "OpenAI":
-        standalone_query_generation_llm = ChatOpenAI(
-            api_key=st.session_state.openai_api_key,
-            model=st.session_state.selected_model,
-            temperature=0.1,
-        )
-        response_generation_llm = ChatOpenAI(
-            api_key=st.session_state.openai_api_key,
-            model=st.session_state.selected_model,
-            temperature=st.session_state.temperature,
-            model_kwargs={"top_p": st.session_state.top_p},
-        )
-    if st.session_state.LLM_provider == "Google":
-        standalone_query_generation_llm = ChatGoogleGenerativeAI(
-            google_api_key=st.session_state.google_api_key,
-            model=st.session_state.selected_model,
-            temperature=0.1,
-            convert_system_message_to_human=True,
-        )
-        response_generation_llm = ChatGoogleGenerativeAI(
-            google_api_key=st.session_state.google_api_key,
-            model=st.session_state.selected_model,
-            temperature=st.session_state.temperature,
-            top_p=st.session_state.top_p,
-            convert_system_message_to_human=True,
-        )
-
-    if st.session_state.LLM_provider == "HuggingFace":
-        standalone_query_generation_llm = HuggingFaceHub(
-            repo_id=st.session_state.selected_model,
-            huggingfacehub_api_token=st.session_state.hf_api_key,
-            model_kwargs={
-                "temperature": 0.1,
-                "top_p": 0.95,
-                "do_sample": True,
-                "max_new_tokens": 1024,
-            },
-        )
-        response_generation_llm = HuggingFaceHub(
-            repo_id=st.session_state.selected_model,
-            huggingfacehub_api_token=st.session_state.hf_api_key,
-            model_kwargs={
-                "temperature": st.session_state.temperature,
-                "top_p": st.session_state.top_p,
-                "do_sample": True,
-                "max_new_tokens": 1024,
-            },
-        )
+    # 4. Instantiate LLMs
+    standalone_query_generation_llm = ChatOpenAI(
+        api_key=st.session_state.openai_api_key,
+        model=st.session_state.selected_model,
+        temperature=0.1,
+    )
+    response_generation_llm = ChatOpenAI(
+        api_key=st.session_state.openai_api_key,
+        model=st.session_state.selected_model,
+        temperature=st.session_state.temperature,
+        model_kwargs={"top_p": st.session_state.top_p},
+    )
 
     # 5. Create the ConversationalRetrievalChain
-
     chain = ConversationalRetrievalChain.from_llm(
         condense_question_prompt=condense_question_prompt,
         combine_docs_chain_kwargs={"prompt": answer_prompt},
@@ -994,12 +1016,22 @@ def get_response_from_LLM(prompt):
         
     try:
         with st.spinner("Generating response..."):
+            # Clear previous memory if it's a new conversation
+            if not st.session_state.messages or len(st.session_state.messages) == 1:
+                st.session_state.memory.clear()
+            
+            # Get response from chain
             response = st.session_state.chain.invoke({"question": prompt})
             answer = response["answer"]
+            
+            # Save chat history
             save_chat_history(st.session_state.user_id, prompt, answer)
+            
+            # Update messages
             st.session_state.messages.append({"role": "user", "content": prompt})
             st.session_state.messages.append({"role": "assistant", "content": answer})
             
+            # Show source documents if available
             if "source_documents" in response and response["source_documents"]:
                 with st.expander("Source Documents"):
                     for doc in response["source_documents"]:
@@ -1019,6 +1051,14 @@ def get_response_from_LLM(prompt):
 def chatbot():
     """Main chatbot function with authentication and credit management"""
     st.title("🤖 RAG chatbot")
+
+    # Try to load pretrained vector store automatically
+    if not st.session_state.documents_loaded:
+        try:
+            if load_pretrained_vector_store():
+                st.success("Pre-trained vector store loaded successfully!")
+        except Exception as e:
+            st.warning(f"Could not load pre-trained vector store: {str(e)}")
 
     # Authentication
     if not st.session_state.user_id:
@@ -1061,17 +1101,6 @@ def chatbot():
         st.session_state.credits = 2.0
         st.session_state.is_admin = False
         st.rerun()
-
-    # Admin controls
-    if st.session_state.is_admin:
-        st.sidebar.divider()
-        st.sidebar.subheader("Admin Controls")
-        if st.sidebar.button("Process Database Documents"):
-            with st.spinner("Processing database documents..."):
-                if process_database_documents():
-                    st.sidebar.success("Database documents processed successfully!")
-                else:
-                    st.sidebar.error("Failed to process database documents")
 
     # Main chat interface
     sidebar_and_documentChooser()
