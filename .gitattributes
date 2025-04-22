@@ -1,4 +1,6 @@
+# Vector store files
 data/vector_stores/**/*.bin filter=lfs diff=lfs merge=lfs -text
 data/vector_stores/**/*.pkl filter=lfs diff=lfs merge=lfs -text
 data/pretrained_vector_store/**/*.bin filter=lfs diff=lfs merge=lfs -text
+data/pretrained_vector_store/**/*.pkl filter=lfs diff=lfs merge=lfs -text 
 data/pretrained_vector_store/**/*.pkl filter=lfs diff=lfs merge=lfs -text

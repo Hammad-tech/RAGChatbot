@@ -1,22 +1,21 @@
 # RAG Chatbot
 
-A Retrieval-Augmented Generation (RAG) chatbot that allows users to chat with their documents using various LLM providers.
+A Retrieval-Augmented Generation (RAG) chatbot that allows users to chat with their documents using OpenAI's language models.
 
 ## Features
 
-- Support for multiple LLM providers (OpenAI, Google Generative AI, HuggingFace)
 - Document upload and processing
-- Pre-trained knowledge base integration
-- User authentication and credit system
-- Admin functionality for database management
-- Chat history tracking and export
+- OpenAI integration
+- User authentication
+- Chat history tracking
+- Admin functionality for database documents
 - Multi-language support
 
 ## Setup
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/Hammad-tech/RAGChatbot.git
+git clone https://github.com/YOUR_USERNAME/RAGChatbot.git
 cd RAGChatbot
 ```
 
@@ -31,45 +30,57 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Set up environment variables:
-Create a `.env` file in the root directory with your API keys:
+4. Create a `.env` file in the root directory with your OpenAI API key:
 ```
-OPENAI_API_KEY=your_openai_api_key
-GOOGLE_API_KEY=your_google_api_key
-HUGGINGFACEHUB_API_TOKEN=your_huggingface_token
+OPENAI_API_KEY=your_api_key_here
 ```
 
-5. Run the application:
+5. Set up the database:
 ```bash
-streamlit run RAG_app.py
+python RAG_app.py
+```
+This will create the necessary database and directory structure.
+
+## Directory Structure
+
+```
+RAGChatbot/
+├── data/
+│   ├── database/          # Place your PDF documents here
+│   ├── pretrained_vector_store/  # Generated embeddings will be stored here
+│   ├── tmp/              # Temporary files
+│   └── vector_stores/    # User-uploaded document embeddings
+├── RAG_app.py           # Main application
+├── generate_embeddings.py # Script to generate embeddings
+├── requirements.txt     # Dependencies
+└── README.md           # Documentation
 ```
 
 ## Usage
 
-1. Register a new account or login with the admin credentials:
-   - Username: admin
-   - Password: admin123
-
-2. Select your preferred LLM provider and enter the corresponding API key
-
-3. Upload documents or use the pre-trained knowledge base
-
-4. Start chatting with your documents!
-
-## Project Structure
-
+1. Start the application:
+```bash
+streamlit run RAG_app.py
 ```
-RAGChatbot/
-├── RAG_app.py           # Main application file
-├── requirements.txt     # Python dependencies
-├── data/               # Data directories
-│   ├── database/       # Database documents
-│   ├── initial_training/ # Initial training data
-│   ├── pretrained_vector_store/ # Pre-trained vector store
-│   └── tmp/           # Temporary files
-└── README.md          # Project documentation
-```
+
+2. For database documents:
+   - Place your PDF files in the `data/database` directory
+   - Run the embeddings generation script:
+   ```bash
+   python generate_embeddings.py
+   ```
+   - The embeddings will be stored in `data/pretrained_vector_store`
+
+3. For individual documents:
+   - Use the document upload feature in the sidebar
+   - The embeddings will be generated automatically
+
+## Notes
+
+- The vector store files are not included in the repository due to their size
+- You need to generate embeddings locally after cloning the repository
+- Make sure you have sufficient OpenAI API credits for generating embeddings
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License.

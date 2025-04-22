@@ -46,10 +46,11 @@ wheels/
 *.temp
 data/tmp/*
 
-# Keep vector stores but ignore specific files
-data/vector_stores/*.zip
-data/vector_stores/tmp/
-data/pretrained_vector_store/tmp/
+# Vector stores - track with Git LFS
+data/vector_stores/**/*.bin
+data/vector_stores/**/*.pkl
+data/pretrained_vector_store/**/*.bin
+data/pretrained_vector_store/**/*.pkl
 
 # Other
 .DS_Store
